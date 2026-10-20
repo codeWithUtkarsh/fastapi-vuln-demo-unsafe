@@ -1,0 +1,5 @@
+fastapi==0.109.0
+starlette==0.35.1
+python-multipart==0.0.9
+uvicorn==0.54.0
+claude-agent-sdk==0.2.118
