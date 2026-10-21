@@ -1,0 +1,152 @@
+# chart/ortelius/templates/deployment.yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "microservice.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ include "microservice.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "microservice.name" . }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml (.Values.nodeSelector | default (dict "kubernetes.io/os" "linux")) | nindent 8 }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "microservice.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          env:
+            - name: ARANGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: arangodb
+                  key: DBUserName
+            - name: ARANGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: arangodb
+                  key: DBPassword
+            - name: ARANGO_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: arangodb
+                  key: DBHost
+            - name: ARANGO_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: arangodb
+                  key: DBPort
+            # --- Non-secret config: shared values from .Values.global ---
+            - name: RBAC_REPO
+              value: "{{ .Values.rbac_repo }}"
+            - name: API_BASE_URL
+              value: "{{ .Values.global.apiBaseUrl }}"
+            - name: BASE_URL
+              value: "{{ .Values.global.baseUrl }}"
+            - name: GITHUB_APP_NAME
+              value: "{{ .Values.global.github.appName }}"
+            - name: GITHUB_APP_ID
+              value: "{{ .Values.global.github.appId }}"
+            - name: GITHUB_CLIENT_ID
+              value: "{{ .Values.global.github.clientId }}"
+            - name: GOOGLE_OIDC_CLIENT_ID
+              value: "{{ .Values.googleOidc.clientId }}"
+            - name: GOOGLE_OIDC_ALLOWED_DOMAIN
+              value: "{{ .Values.googleOidc.allowedDomain }}"
+            - name: GOOGLE_OIDC_REDIRECT_URL
+              value: "{{ .Values.global.baseUrl }}/api/v1/auth/google/callback"
+            - name: GITHUB_OAUTH_CLIENT_ID
+              value: "{{ .Values.githubSignin.clientId }}"
+            - name: GITHUB_OAUTH_REDIRECT_URL
+              value: "{{ .Values.global.baseUrl }}/api/v1/auth/github-signin/callback"
+            # --- True secrets: pulled from Secret objects ---
+            - name: RBAC_REPO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rbac
+                  key: RBACRepoToken
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: github-creds
+                  key: ClientSecret
+            - name: GITHUB_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: github-creds
+                  key: PrivateKey
+            - name: GITHUB_READONLY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-creds
+                  key: ReadOnlyToken
+            - name: TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: token-encryption
+                  key: TokenEncryptionKey
+            - name: GOOGLE_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: google-oidc-creds
+                  key: ClientSecret
+            - name: GITHUB_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: github-signin-creds
+                  key: ClientSecret
+            {{- if .Values.smtp.enabled }}
+            - name: SMTP_HOST
+              value: "{{ .Values.smtp.host }}"
+            - name: SMTP_PORT
+              value: "{{ .Values.smtp.port }}"
+            - name: SMTP_USERNAME
+              value: "{{ .Values.smtp.username }}"
+            - name: SMTP_FROM_EMAIL
+              value: "{{ .Values.smtp.fromEmail }}"
+            - name: SMTP_FROM_NAME
+              value: "{{ .Values.smtp.fromName }}"
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: smtp-config
+                  key: SMTPPassword
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds | default 10 }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold | default 3 }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds | default 60 }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds | default 60 }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold | default 3 }}
+---

@@ -1,0 +1,8 @@
+---
+apiVersion: v2
+description: AI Hackathon Demo
+icon: https://ortelius.github.io/ortelius-charts/logo.png
+name: fastapi-vuln-demo
+type: application
+version: 12.0.0
+appVersion: 12.0.0
